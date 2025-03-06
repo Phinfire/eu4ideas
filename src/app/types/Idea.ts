@@ -1,4 +1,6 @@
-export class Idea {
+import { IIdea } from "./IIdea";
+
+export class Idea implements IIdea {
 
     constructor(private key: string, private modifier: number, private costPerLevel: number[]) {
 

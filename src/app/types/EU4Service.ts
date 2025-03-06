@@ -3,12 +3,22 @@ import { Jomini } from "jomini";
 import JSZip from "jszip";
 import { Idea } from "./Idea";
 
+export enum NumberKind {
+    CONSTANT,
+    MULTIPLICATIVE,
+    ADDITIVE
+}
+
 @Injectable({providedIn: 'root'})
 export class EU4Service {
 
     private readonly rootUrl = "https://codingafterdark.de/ide/";
 
     private ideas: Map<string,Map<string,Idea>> = new Map();
+    private idea2Category: Map<string,string> = new Map();
+    private idea2NumberKind: Map<string,NumberKind> = new Map();
+    private idea2Localisation: Map<string,string> = new Map();
+    private category2IdeaKeys: Map<string,string[]> = new Map();
 
     constructor() {
         fetch("https://codingafterdark.de/ide/custom_ideas.zip")
@@ -25,6 +35,43 @@ export class EU4Service {
                     });
                 });
             });
+        fetch("https://codingafterdark.de/ide/modifiers.json?" + new Date().getTime())
+            .then(response => response.json())
+            .then(data => {
+                for (let category of Object.keys(data)) {
+                    for (let ideaKey of Object.keys(data[category])) {
+                        const kindString = data[category][ideaKey].kind;
+                        const loc = data[category][ideaKey].loc;
+                        this.idea2Category.set(ideaKey, category);
+                        this.idea2Localisation.set(ideaKey, loc);
+                        if (kindString == "m") {
+                            this.idea2NumberKind.set(ideaKey, NumberKind.MULTIPLICATIVE);
+                        } else if (kindString == "a") {
+                            this.idea2NumberKind.set(ideaKey, NumberKind.ADDITIVE);
+                        } else if (kindString == "c") {
+                            this.idea2NumberKind.set(ideaKey, NumberKind.CONSTANT);
+                        } else {
+                            throw new Error("Unknown number kind: " + kindString);
+                        }
+                        if (!this.category2IdeaKeys.has(category)) {
+                            this.category2IdeaKeys.set(category, []);
+                        }
+                        this.category2IdeaKeys.get(category)!.push(ideaKey);
+                    }
+                }
+
+            });
+    }
+
+    public getTypeOfIdea(ideaKey: string) {
+        return this.idea2NumberKind.get(ideaKey)!;
+    }
+
+    public localizeIdea(ideaKey: string) {
+        if (this.idea2Localisation.has(ideaKey)) {
+            return this.idea2Localisation.get(ideaKey)!;
+        }
+        return ideaKey;
     }
 
     public extractIdeas(parsed: any) {
@@ -63,15 +110,41 @@ export class EU4Service {
         return this.ideas;
     }
 
-    public waitForIdeas() {
+    public getCustomIdeaWeights() {
+        return [2, 2, 1.8, 1.6, 1.4, 1,2, 1, 1, 1]
+    }
+
+    public getCategory2IdeaKeys() {
+        return this.category2IdeaKeys;
+    }
+
+    public waitUntilReady() {
         return new Promise((resolve, reject) => {
-            if (this.ideas.size > 0) {
+            if (this.ideas.size > 0 && this.idea2Category.size > 0 && this.idea2NumberKind.size > 0 && this.idea2Localisation.size > 0) {
                 resolve(null);
             } else {
                 setTimeout(() => {
-                    this.waitForIdeas().then(() => resolve(null));
+                    this.waitUntilReady().then(() => resolve(null));
                 }, 100);
             }
         });
+    }
+
+    public getIdeaKind(key: string) {
+        for (let [category, idea] of this.ideas.entries()) {
+            if (idea.has(key)) {
+                return category;
+            }
+        }
+        return null;
+    }
+
+    public getIdea(key: string) {
+        for (let [category, idea] of this.ideas.entries()) {
+            if (idea.has(key)) {
+                return idea.get(key)!;
+            }
+        }
+        throw new Error("Idea not found: " + key);
     }
 }
