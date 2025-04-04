@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, HostListener, Input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatSliderModule } from '@angular/material/slider';
 import { EU4Service } from '../types/game/EU4Service';
@@ -10,6 +10,7 @@ import { ISliderConfig, SliderConfig } from './ISliderConfig';
 import { UserConfigurationProvider } from '../types/UserConfigurationProvider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Mana } from '../types/game/Mana';
+import { ImportExportService } from '../types/ImportExportService';
 
 @Component({
   selector: 'app-nat-idea-view',
@@ -23,6 +24,7 @@ export class NatIdeaViewComponent {
   private entries: (IIdea | null)[] = Array.from({ length: 10 }, () => null);
 
   private previouslySetIdeaValues: Map<string, number> = new Map();
+  private previouslySetIdeaPositions: Map<string, number> = new Map();
 
   @Input() ideasConnector!: IdeasConnector;
 
@@ -30,48 +32,58 @@ export class NatIdeaViewComponent {
   nationTag: string = "";
   nationFlagImageUrl: string = "";
 
-  constructor(private eu4: EU4Service, private userConfig: UserConfigurationProvider) {
+  constructor(private eu4: EU4Service, private userConfig: UserConfigurationProvider, private importExportService: ImportExportService) {
     this.loadPreviouslySetIdeaValuesFromLocalStorage();
   }
 
   ngOnInit() {
-    this.ideasConnector.registerSelectionChangedListener(() => this.refreshSliders());
+    this.ideasConnector.registerSelectionChangedListener(() => this.refreshEntries());
+    this.refreshEntries();
+    this.initFileDragAndDropImport();
+  }
+
+  private refreshEntries() {
+    const newSelection = this.ideasConnector.getSelectedIdeas();
+    const adddedIdeas = Array.from(newSelection).filter(idea => !this.entries.includes(idea));
+    if (adddedIdeas.length > 0) {
+      for (let adddedIdea of adddedIdeas) {
+        if (this.previouslySetIdeaPositions.has(adddedIdea.getKey())) {
+          const index = this.previouslySetIdeaPositions.get(adddedIdea.getKey())!;
+          this.entries[index] = adddedIdea;
+          continue;
+        }
+        for (let i = 0; i < this.entries.length; i++) {
+          if (this.entries[i] == null) {
+            this.entries[i] = adddedIdea;
+            break;
+          }
+        }
+      }
+    } else {
+      for (let i = 0; i < this.entries.length; i++) {
+        if (this.entries[i] != null && !newSelection.has(this.entries[i]!)) {
+          this.previouslySetIdeaValues.set(this.entries[i]!.getKey(), this.sliders[i]!.value);
+          this.entries[i] = null;
+        }
+      }
+    }
     this.refreshSliders();
   }
 
   private refreshSliders() {
-    const newSelection = this.ideasConnector.getSelectedIdeas();
-      const adddedIdeas = Array.from(newSelection).filter(idea => !this.entries.includes(idea));
-      if (adddedIdeas.length > 0) {
-        for (let adddedIdea of adddedIdeas) {
-          for (let i = 0; i < this.entries.length; i++) {
-            if (this.entries[i] == null) {
-              this.entries[i] = adddedIdea;
-              break;
-            }
-          }
-        }
+    const newSliders = [];
+    for (let i = 0; i < this.entries.length; i++) {
+      if (this.entries[i] == null) {
+        newSliders.push(null);
       } else {
-        for (let i = 0; i < this.entries.length; i++) {
-          if (this.entries[i] != null && !newSelection.has(this.entries[i]!)) {
-            this.previouslySetIdeaValues.set(this.entries[i]!.getKey(), this.sliders[i]!.value);
-            this.entries[i] = null;
-          }
+        let value = this.previouslySetIdeaValues.get(this.entries[i]!.getKey()) || 1;
+        if (this.sliders[i] != null) {
+          value = this.sliders[i]!.value;
         }
+        newSliders.push(new SliderConfig(this.entries[i]!, this.eu4, value));
       }
-      const newSliders = [];
-      for (let i = 0; i < this.entries.length; i++) {
-        if (this.entries[i] == null) {
-          newSliders.push(null);
-        } else {
-          let value = this.previouslySetIdeaValues.get(this.entries[i]!.getKey()) || 1;
-          if (this.sliders[i] != null) {
-            value = this.sliders[i]!.value;
-          }
-          newSliders.push(new SliderConfig(this.entries[i]!, this.eu4, value));
-        }
-      }
-      this.sliders = newSliders;
+    }
+    this.sliders = newSliders;
   }
 
   getIdeaAtIndex(index: number) {
@@ -80,10 +92,10 @@ export class NatIdeaViewComponent {
 
   getIdeasInOrder() {
     return this.entries.map((idea, index) => {
-      if (idea == null) {
-        return null;
+      if (idea != null) {
+        return { idea, level: this.sliders[index]!.value };
       }
-      return { idea, level: this.sliders[index]!.value };
+      return null;
     }).filter(idea => idea != null);
   }
 
@@ -92,8 +104,9 @@ export class NatIdeaViewComponent {
   }
 
   getChildren(slider: ISliderConfig) {
-    return [];
-    //return slider.value == slider.max ? [slider] : [];
+    return this.userConfig.getFreeBonus(slider.getIdea(), slider.value).map(idea => {
+      return new SliderConfig(idea.getIdea(), this.eu4, idea.getLevel());
+    });
   }
 
   getRealWorldCost(index: number, div: HTMLDivElement | null) {
@@ -120,20 +133,26 @@ export class NatIdeaViewComponent {
   }
 
   drop(event: CdkDragDrop<string[]>) {
-    const a = this.sliders[event.previousIndex];
-    this.sliders[event.previousIndex] = this.sliders[event.currentIndex];
-    this.sliders[event.currentIndex] = a;
+    const start = event.previousIndex;
+    const end = event.currentIndex;
 
-    const b = this.entries[event.previousIndex];
-    this.entries[event.previousIndex] = this.entries[event.currentIndex];
-    this.entries[event.currentIndex] = b;
+    const b = this.entries[start];
+    this.entries[start] = this.entries[end];
+    this.entries[end] = b;
+    if (this.entries[start] != null) {
+      this.previouslySetIdeaPositions.set(this.entries[start]!.getKey(), start);
+    }
+    if (this.entries[end] != null) {
+      this.previouslySetIdeaPositions.set(this.entries[end]!.getKey(), end);
+    }
+    this.refreshSliders();
   }
 
   getManaIcon(index: number) {
     return [Mana.ADM, Mana.DIP, Mana.MIL][index].getIconUrl();
   }
 
-  getManaPercentages() {
+  getCostsPerMana() {
     if (this.ideasConnector.getSelectedIdeas().size < 1) {
       return [0, 0, 0];
     }
@@ -145,6 +164,11 @@ export class NatIdeaViewComponent {
         return slider.getIdea().getCostAtLevel(slider.value);
       }).reduce((a, b) => a + b, 0);
     });
+    return costPerMana;
+  }
+
+  getManaPercentages() {
+    const costPerMana = this.getCostsPerMana();
     const totalCost = costPerMana.reduce((a, b) => a + b, 0);
     return costPerMana.map(cost => {
       if (totalCost == 0) {
@@ -155,14 +179,6 @@ export class NatIdeaViewComponent {
   }
 
   getManaPercentage(index: number) {
-    /*
-    if (this.ideasConnector.getSelectedIdeas().size < 1) {
-      return 0;
-    }
-    const mana = [Mana.ADM, Mana.DIP, Mana.MIL][index];
-    const ideasOfThisType = Array.from(this.ideasConnector.getSelectedIdeas().values()).map(idea => idea.getMana()).filter(m => m == mana).length;
-    return 100 * ideasOfThisType / this.ideasConnector.getSelectedIdeas().size;
-    */
     return this.getManaPercentages()[index];
   }
 
@@ -183,21 +199,71 @@ export class NatIdeaViewComponent {
     this.sliders.filter(slider => slider != null).forEach(slider => {
       this.previouslySetIdeaValues.set(slider!.getKey(), slider!.value);
     });
-    this.storePreviouslySetIdeaValuesInLocalStorage();
+    this.storePreviouslySetValuesAndPositionsInLocalStorage();
   }
 
-  storePreviouslySetIdeaValuesInLocalStorage() {
+  storePreviouslySetValuesAndPositionsInLocalStorage() {
     localStorage.setItem("previouslySetIdeaValues", JSON.stringify(Array.from(this.previouslySetIdeaValues.entries())));
+    localStorage.setItem("previouslySetIdeaPositions", JSON.stringify(Array.from(this.previouslySetIdeaPositions.entries())));
   }
 
   loadPreviouslySetIdeaValuesFromLocalStorage() {
     const previouslySetIdeaValues = localStorage.getItem("previouslySetIdeaValues");
+    const previouslySetIdeaPositions = localStorage.getItem("previouslySetIdeaPositions");
     if (previouslySetIdeaValues) {
       this.previouslySetIdeaValues = new Map(JSON.parse(previouslySetIdeaValues));
+    }
+    if (previouslySetIdeaPositions) {
+      this.previouslySetIdeaPositions = new Map(JSON.parse(previouslySetIdeaPositions));
     }
   }
 
   onIdeaIconClick(slider: ISliderConfig) {
-    this.ideasConnector.setSelection(slider.getIdea().getKey(), false);
+    this.previouslySetIdeaPositions.delete(slider.getKey());
+    this.ideasConnector.setSelected(slider.getIdea().getKey(), false);
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  beforeUnloadHandler(event: BeforeUnloadEvent) {
+    this.storePreviouslySetValuesAndPositionsInLocalStorage();
+  }
+
+  private initFileDragAndDropImport() {
+    const dropArea = document.getElementsByClassName('idea-set-header');
+    if (dropArea.length > 0) {
+      dropArea[0].addEventListener('dragover', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+      dropArea[0].addEventListener('drop', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const files = (event as DragEvent).dataTransfer!.files;
+        if (files && files.length > 0) {
+          const file = files[0];
+          if (file.name.endsWith('.zip')) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+              if (e.target?.result instanceof ArrayBuffer) {
+                const JSZip = (await import('jszip')).default;
+                const zip = await JSZip.loadAsync(e.target.result);
+                const fileNames = Object.keys(zip.files);
+                for (const fileName of fileNames) {
+                  const fileContent = await zip.files[fileName].async("string");
+                  if (fileName.endsWith(".txt")) {
+                    this.importExportService.parseIntoIdeas(fileContent).then((parsed) => {
+                    });
+                  }
+                }
+              }
+            };
+            reader.readAsArrayBuffer(file);
+          } else {
+            console.log("The dropped file is not a zip file.");
+          }
+        }
+      });
+    }
   }
 }

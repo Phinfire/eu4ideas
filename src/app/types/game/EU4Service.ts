@@ -3,8 +3,6 @@ import { Jomini } from "jomini";
 import JSZip from "jszip";
 import { Idea } from "./Idea";
 import { Modifier } from "./Modifier";
-import { IIconProvider } from "../keyedIcons/IIconProvider";
-import { KeyedIcon } from "../keyedIcons/KeyedIcon";
 import { Mana } from "./Mana";
 
 export enum NumberKind {

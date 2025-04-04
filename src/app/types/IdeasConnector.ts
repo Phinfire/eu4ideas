@@ -8,8 +8,10 @@ import { UserConfigurationProvider } from './UserConfigurationProvider';
 @Injectable({
   providedIn: 'root'
 })
-export class IdeasConnector implements ISelectConnector{
+export class IdeasConnector implements ISelectConnector {
   
+  private maxIdeas = 10;
+
   private selectedIdeas: Set<Idea> = new Set();
   private listeners: (() => void)[] = [];
 
@@ -40,7 +42,16 @@ export class IdeasConnector implements ISelectConnector{
     return this.selectedIdeas.has(this.lobbyConfigProvider.getIdea(key));
   }
 
-  setSelection(key: string, selected: boolean) {
+  setSelection(keys: string[]) {
+    if (keys.length > this.maxIdeas) {
+      throw new Error("Too many ideas selected: " + keys.length);
+    }
+    this.selectedIdeas.clear();
+    keys.forEach(key => this.selectedIdeas.add(this.lobbyConfigProvider.getIdea(key)));
+    this.listeners.forEach(listener => listener());
+  }
+  
+  setSelected(key: string, selected: boolean) {
     if (selected) {
       this.selectedIdeas.add(this.lobbyConfigProvider.getIdea(key));
     } else {
@@ -50,6 +61,6 @@ export class IdeasConnector implements ISelectConnector{
   }
 
   public canAlterSelection(key: string) {
-    return this.selectedIdeas.size < 10 || this.selectedIdeas.has(this.lobbyConfigProvider.getIdea(key));
+    return this.selectedIdeas.size < this.maxIdeas || this.selectedIdeas.has(this.lobbyConfigProvider.getIdea(key));
   }
 }

@@ -47,7 +47,7 @@ export class IconPoolComponent {
 
   onIconClick(key: string) {
     if (this.connector.canAlterSelection(key)) {
-      this.connector.setSelection(key, !this.isSelected(key));
+      this.connector.setSelected(key, !this.isSelected(key));
     }
   }
 

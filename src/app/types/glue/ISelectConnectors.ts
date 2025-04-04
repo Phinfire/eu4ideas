@@ -6,7 +6,9 @@ export interface ISelectConnector {
 
     isSelected(key: string): boolean;
 
-    setSelection(key: string, selected: boolean): void;
+    setSelection(keys: string[]): void;
+
+    setSelected(key: string, selected: boolean): void;
 
     canAlterSelection(key: string): boolean;
 

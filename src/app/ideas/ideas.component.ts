@@ -8,11 +8,12 @@ import { IdeasConnector } from '../types/IdeasConnector';
 import { IIconProvider } from '../types/keyedIcons/IIconProvider';
 import { UserConfigurationProvider } from '../types/UserConfigurationProvider';
 import { TagSelectConnector } from '../types/glue/TagSelectConnector';
-import { ExportService } from '../types/ExportService';
+import { ImportExportService } from '../types/ImportExportService';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { IdeaAtLevel } from '../types/IdeaAtLevel';
 
 @Component({
   selector: 'app-ideas',
@@ -22,7 +23,6 @@ import { MatInputModule } from '@angular/material/input';
 })
 export class IdeasComponent {
 
-  //ideaLocalisations = [{key: "K", value: "V"}];
   ideaLocalisations = Array.from({ length: 7 }, () => ({ key: "", value: "" }));
   items = ["Nation","Ideas", "Localisation", "Export"];
   expandedIndex: number | null = 0;
@@ -32,7 +32,7 @@ export class IdeasComponent {
   nationProvider: IIconProvider;
   nationSelectConnector = new TagSelectConnector();
 
-  constructor(public eu4: EU4Service, private exportService: ExportService, public lobbyConfigProvider: UserConfigurationProvider, public ideasConnector: IdeasConnector) {
+  constructor(public eu4: EU4Service, private exportService: ImportExportService, public lobbyConfigProvider: UserConfigurationProvider, public ideasConnector: IdeasConnector) {
     this.nationProvider = lobbyConfigProvider.getNationProvider();
   }
 
@@ -76,11 +76,7 @@ export class IdeasComponent {
       return true;
     }
     const ideas = this.natIdeaViewComponent.getIdeasInOrder();
-    const errorMessage = this.lobbyConfigProvider.isLegalConfiguration(ideas.map(id => id.idea), ideas.map(id => id.level), this.natIdeaViewComponent.getManaPercentages());
-    if (errorMessage) {
-      return true;
-    }
-    return false;
+    return this.lobbyConfigProvider.getIllegalIdeaErrorMessageIfExists(ideas.map(id => id.idea), ideas.map(id => id.level), this.natIdeaViewComponent.getManaPercentages());
   }
 
   isExportDisabled() {
@@ -92,7 +88,7 @@ export class IdeasComponent {
       return null;
     }
     const ideas = this.natIdeaViewComponent.getIdeasInOrder();
-    return this.lobbyConfigProvider.isLegalConfiguration(ideas.map(id => id.idea), ideas.map(id => id.level), [0,1,2].map(i => this.natIdeaViewComponent.getManaPercentage(i)));
+    return this.lobbyConfigProvider.getIllegalIdeaErrorMessageIfExists(ideas.map(id => id.idea), ideas.map(id => id.level), [0,1,2].map(i => this.natIdeaViewComponent.getManaPercentage(i)));
   }
 
   onExportClick() {
@@ -109,7 +105,13 @@ export class IdeasComponent {
     if (!nationTag) {
       return;
     }
-    const ideaFileContent = this.exportService.getIdeaString(nationTag, Array.from(this.ideasConnector.getSelectedIdeas().values()), this.natIdeaViewComponent.getSliders().map(slider => slider!.value));
+    const ideasAndLevels = this.natIdeaViewComponent.getSliders().map(slider => {
+      const sliderIdea = slider!.getIdea();
+      const sliderLevel = slider!.value;
+      const freeStuff = this.lobbyConfigProvider.getFreeBonus(sliderIdea, sliderLevel);
+      return [new IdeaAtLevel(sliderIdea, sliderLevel)].concat(freeStuff);
+    });
+    const ideaFileContent = this.exportService.getIdeaString(nationTag, ideasAndLevels);
     const locFileContent = this.exportService.getLocSnippet(nationTag, this.ideaLocalisations.map(localisation => localisation.key), this.ideaLocalisations.map(localisation => localisation.value));
     this.exportService.downloadAsZip(nationTag, ideaFileContent, locFileContent);
   }
@@ -128,24 +130,6 @@ export class IdeasComponent {
     }
     return "";
   }
-/*
-  private storeTagAndLocalisationsinLocalStorage() {
-    console.log("Storing tag and localisations in local storage", this.nationSelectConnector.getSelectedKeys(), this.ideaLocalisations);
-    if (this.nationSelectConnector.getSelectedKeys().size > 0) {
-      localStorage.setItem('nationTag', Array.from(this.nationSelectConnector.getSelectedKeys())[0]);
-    }
-    let anyNonEmpty = false;
-    for (let i = 0; i < this.ideaLocalisations.length; i++) {
-      if (this.ideaLocalisations[i].key.length > 0 || this.ideaLocalisations[i].value.length > 0) {
-        anyNonEmpty = true;
-        break;
-      }
-    }
-    if (anyNonEmpty) {
-      localStorage.setItem('ideaLocalisations', JSON.stringify(this.ideaLocalisations));
-    }
-  }
-  */
 
   private storeTagInLocalStorage() {
     const tag = Array.from(this.nationSelectConnector.getSelectedKeys())[0];
@@ -161,10 +145,9 @@ export class IdeasComponent {
   }
 
   private loadTagAndLocalisationsFromLocalStorage() {
-    console.log("Loading tag and localisations from local storage", localStorage.getItem('nationTag'), localStorage.getItem('ideaLocalisations'));
     const tag = localStorage.getItem('nationTag');
     if (tag) {
-      this.nationSelectConnector.setSelection(tag, true);
+      this.nationSelectConnector.setSelected(tag, true);
     }
     const localisations = localStorage.getItem('ideaLocalisations');
     if (localisations) {

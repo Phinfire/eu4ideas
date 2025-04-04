@@ -1,4 +1,6 @@
-export class TagSelectConnector {
+import { ISelectConnector } from "./ISelectConnectors";
+
+export class TagSelectConnector implements ISelectConnector{
     private selectedTag: string | null = null;
     private listeners: (() => void)[] = [];
 
@@ -14,7 +16,11 @@ export class TagSelectConnector {
         return this.selectedTag == key;
     }
 
-    setSelection(key: string, selected: boolean): void {
+    setSelection(keys: string[]) {
+        
+    }
+
+    setSelected(key: string, selected: boolean): void {
         this.selectedTag = selected ? key : null;
         this.listeners.forEach(listener => listener());
     }

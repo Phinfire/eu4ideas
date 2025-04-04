@@ -24,7 +24,9 @@
             </tr>
           </ng-container>
           <ng-container *ngIf="slider === null">
-            <ng-container *ngTemplateOutlet="nullSliderTemplate; context: { index: i }"></ng-container>
+            <tr cdkDrag [cdkDragDisabled]="true" class="placeholder-row">
+              <ng-container *ngTemplateOutlet="nullSliderTemplate; context: { index: i }"></ng-container>
+            </tr>
           </ng-container>
         </ng-container>
       </tbody>
@@ -55,13 +57,12 @@
   </div>
 
 <ng-template #nullSliderTemplate let-i="index">
-  <tr class="placeholder-row">
     <td *ngIf="i === 0" class="idea-kind-cell">Traditions</td>
     <td *ngIf="i === 2" class="idea-kind-cell">Ideas</td>
     <td *ngIf="i === 9" class="idea-kind-cell">Ambition</td>
     <td *ngIf="i !== 0 && i !== 2 && i !== 9" class="idea-kind-cell-index">{{  i == 1 ? "" : i - 1 }}</td>
-    <td cdkDragHandle>👈Select Modifier</td>
-    <td cdkDragHandle>
+    <td>👈Select Modifier</td>
+    <td>
       <img alt="" width="auto" height="100%" draggable="false">
     </td>
     <td>
@@ -74,7 +75,6 @@
     </td>
     <td class="faded">0</td>
     <td>0</td>
-  </tr>
 </ng-template>
 
 <ng-template #parentSliderTemplate let-slider="slider" let-i="index">

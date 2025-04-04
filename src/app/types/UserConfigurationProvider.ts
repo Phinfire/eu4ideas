@@ -6,47 +6,80 @@ import { EU4Service } from "./game/EU4Service";
 import { Modifier } from "./game/Modifier";
 import { Mana } from "./game/Mana";
 import { IIdea } from "./game/IIdea";
-
-interface IdeaAtLevel {
-    ideaKey: string;
-    level: number;
-}
+import { IdeaAtLevel } from "./IdeaAtLevel";
 
 @Injectable({providedIn: 'root'})
 export class UserConfigurationProvider {
 
     private minPercentageOfCost = 0.3;    
     private maxFromSingleMana = 4;
-    private have1GetTheOtherFree = new Map<IdeaAtLevel, IdeaAtLevel[]>();
+    private have1GetTheOtherFree = new Map<string, IdeaAtLevel[]>();
     private balancedIdeas = new Map<string, Idea>();
 
     constructor(private eu4: EU4Service) {
         this.eu4.waitUntilReady().then(() => {
-            fetch("https://codingafterdark.de/mc/ideas/data/free.txt")
+            fetch("https://codingafterdark.de/mc/ideas/data/free.txt" + "?" + new Date().getTime())
             .then(response => response.text())
             .then(data => {
                 this.have1GetTheOtherFree = this.extractGet1Get1Free(data);
                 fetch("https://codingafterdark.de/mc/ideas/data/balancedIdeas.txt")
                     .then(response => response.text())
                     .then(balancedData => {
-                        this.balancedIdeas = this.extractBalancedIdeas(balancedData);
+                        const extracted = this.extractBalancedIdeas(balancedData);
+                        for (let [key, idea] of extracted) {
+                            const noGoIncludes = [
+                                "_not_", "dice", "own_coast", "attack_bonus", "all_power_cost", "capped", "tactics",
+                                 "monarch_admin_power",  "monarch_diplomatic_power", "monarch_military_power"
+                            ];
+                            if (noGoIncludes.some(ng => key.includes(ng))) {
+                                continue;
+                            }
+                            this.balancedIdeas.set(key, idea);
+                        }
                     });
             });
         });
     }
 
     private extractGet1Get1Free(data: string) {
-        const have1GetTheOtherFree = new Map<IdeaAtLevel, IdeaAtLevel[]>();
+        const have1GetTheOtherFree = new Map<string, IdeaAtLevel[]>();
         for (let line of data.split("\n")) {
+            if (line.startsWith("#") || line.trim().length == 0) {
+                continue;
+            }
             const parts = line.split(";").map(part => part.trim());
             const have = parts[0].split("=").map(part => part.trim());
+            const haveIdeaKey = have[0].trim();
             const getsIdeasAtLevels = [];
             for (let i = 1; i < parts.length; i++) {
-                
+                const freeIdeaKey = parts[i].split("=")[0].trim();
+                if (parts[i].split("=")[1].trim() == "yes") {
+                    getsIdeasAtLevels.push(new IdeaAtLevel(this.getIdea(freeIdeaKey), 1));
+                } else {
+                    const modifier = parseFloat(parts[i].split("=")[1].trim());
+                    const baseModifier = this.getIdea(freeIdeaKey).getModifierAtLevel(1);
+                    const freeLevel = this.calculateLevelFromModifiers(baseModifier, modifier);
+                    getsIdeasAtLevels.push(new IdeaAtLevel(this.getIdea(freeIdeaKey), freeLevel));
+                }
             }
-
+            const haveModifier = parseFloat(have[1].trim());
+            const baseModifier = this.getIdea(haveIdeaKey).getModifierAtLevel(1);
+            const haveLevel = this.calculateLevelFromModifiers(baseModifier, haveModifier);
+            const haveIdeaAtLevel = haveIdeaKey + haveLevel;
+            have1GetTheOtherFree.set(haveIdeaAtLevel, getsIdeasAtLevels);
         }
-        return new Map<IdeaAtLevel, IdeaAtLevel[]>();
+        return have1GetTheOtherFree;
+    }
+
+    private calculateLevelFromModifiers(baseModifier: number, modifier: number) {
+        const level = Math.round(modifier / baseModifier);
+        if (Number.isNaN(level)) {
+            throw new Error("Invalid level calculated from baseModifier " + baseModifier + " and modifier " + modifier);
+        }
+        if (!Number.isInteger(level)) {
+            throw new Error("Level is not an integer: " + level + " from baseModifier " + baseModifier + " and modifier " + modifier);
+        }
+        return level;
     }
     
     private extractBalancedIdeas(data: string) {
@@ -72,9 +105,12 @@ export class UserConfigurationProvider {
         return balancedIdeas;
     }
 
-    isLegalConfiguration(headIdeas: IIdea[], levels: number[], preCalculatedManaPercentages: number[]) {
-        if (preCalculatedManaPercentages.some(percentage => percentage > this.minPercentageOfCost)) {
-            return "You have to select at least 25% of the cost from each mana type.";
+    getIllegalIdeaErrorMessageIfExists(headIdeas: IIdea[], levels: number[], preCalculatedManaPercentages: number[]) {
+        for (let i = 0; i < 3; i++) {
+            const manaPercentage = preCalculatedManaPercentages[i];
+            if (manaPercentage < this.minPercentageOfCost) {
+                return "You have to select at least 25% (cost) " + [Mana.ADM,Mana.DIP,Mana.MIL][preCalculatedManaPercentages.indexOf(manaPercentage)].getName() + " ideas.";
+            }
         }
         if (headIdeas.length !== levels.length || headIdeas.length != 10) {
             return "Please select exactly 10 ideas.";
@@ -90,25 +126,29 @@ export class UserConfigurationProvider {
             if (!ideasPerMana.has(mana)) {
                 ideasPerMana.set(mana, 0);
             }
-            ideasPerMana.set(mana, ideasPerMana.get(mana)! + levels[i]);
+            ideasPerMana.set(mana, ideasPerMana.get(mana)! + 1);
         }
-        if ([...ideasPerMana.values()].some(count => count > this.maxFromSingleMana)) {
-            return "You can only select a maximum of " + this.maxFromSingleMana + " ideas from each mana type.";
+        for (let mana of ideasPerMana.keys()) {
+            if (ideasPerMana.get(mana)! > this.maxFromSingleMana) {
+                return "You have " + ideasPerMana.get(mana)! + " ideas of type " + mana.getName() + ", but you can only select " + this.maxFromSingleMana + ".";
+            }
         }
-        return true;
+        
+        return null;
     }
 
-    getFreeBonus(idea: Idea, level: number) {
+    getFreeBonus(idea: IIdea, level: number) {
         const ideaKey = idea.getKey();
-        const headIdeas = this.have1GetTheOtherFree.get({ideaKey: ideaKey, level: level});
-        if (headIdeas) {
-            return headIdeas.map(ideaAtLevel => ({idea: this.eu4.getIdea(ideaAtLevel.ideaKey), level: ideaAtLevel.level}));
+        if (this.have1GetTheOtherFree.has(ideaKey)) {
+            return this.have1GetTheOtherFree.get(ideaKey + level)!
         }
         return [];
     }
     
     public getCustomIdeaWeights() {
-        return [2, 2, 1.8, 1.6, 1.4, 1,2, 1, 1, 1]
+        return [2, 2, 
+            2, 1.8, 1.6, 1.4, 1.2, 1, 1,
+            1]
     }
 
 
@@ -131,6 +171,9 @@ export class UserConfigurationProvider {
     }
 
     public getIdea(key: string): Idea {
+        if (!this.balancedIdeas.has(key)) {
+            return this.eu4.getIdea(key);
+        }
         return this.balancedIdeas.get(key)!;
     }
 

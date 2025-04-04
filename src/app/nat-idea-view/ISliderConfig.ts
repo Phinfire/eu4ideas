@@ -55,7 +55,7 @@ export class SliderConfig implements ISliderConfig {
     } else if (type == NumberKind.CONSTANT) {
       return modifierAsNumber.toString();
     } else {
-      return modifierAsNumber.toString();
+      return modifierAsNumber.toFixed(2);
     }
   }
 
