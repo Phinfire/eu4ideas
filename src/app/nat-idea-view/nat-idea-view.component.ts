@@ -11,10 +11,15 @@ import { UserConfigurationProvider } from '../types/UserConfigurationProvider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Mana } from '../types/game/Mana';
 import { ImportExportService } from '../types/ImportExportService';
+import { CustomNatIdeaService } from '../types/game/CustomNatIdeaService';
+import { IdeaAtLevel } from '../types/IdeaAtLevel';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { min } from 'rxjs';
 
 @Component({
   selector: 'app-nat-idea-view',
-  imports: [MatSliderModule, FormsModule, CommonModule, DragDropModule, MatTooltipModule],
+  imports: [MatSliderModule, FormsModule, CommonModule, DragDropModule, MatTooltipModule, MatButtonModule, MatIconModule],
   templateUrl: './nat-idea-view.component.html',
   styleUrl: './nat-idea-view.component.scss'
 })
@@ -32,14 +37,21 @@ export class NatIdeaViewComponent {
   nationTag: string = "";
   nationFlagImageUrl: string = "";
 
-  constructor(private eu4: EU4Service, private userConfig: UserConfigurationProvider, private importExportService: ImportExportService) {
+  constructor(private ideaService: CustomNatIdeaService, private eu4: EU4Service, private userConfig: UserConfigurationProvider, private importExportService: ImportExportService) {
     this.loadPreviouslySetIdeaValuesFromLocalStorage();
   }
 
   ngOnInit() {
     this.ideasConnector.registerSelectionChangedListener(() => this.refreshEntries());
     this.refreshEntries();
-    this.initFileDragAndDropImport();
+    const dropArea = document.getElementsByClassName('idea-set-header');
+    /*
+    this.importExportService.initFileDragAndDropImport(dropArea[0] as HTMLElement, (results: Map<string,{ideas: IdeaAtLevel[], loc: Map<string,string>}>) => {
+      for (let [tag, { ideas, loc }] of results) {
+        this.importIdeas(ideas);
+      }
+    });
+    */
   }
 
   private refreshEntries() {
@@ -49,8 +61,10 @@ export class NatIdeaViewComponent {
       for (let adddedIdea of adddedIdeas) {
         if (this.previouslySetIdeaPositions.has(adddedIdea.getKey())) {
           const index = this.previouslySetIdeaPositions.get(adddedIdea.getKey())!;
-          this.entries[index] = adddedIdea;
-          continue;
+          if (this.entries[index] == null) {
+            this.entries[index] = adddedIdea;
+            continue;
+          }
         }
         for (let i = 0; i < this.entries.length; i++) {
           if (this.entries[i] == null) {
@@ -71,19 +85,14 @@ export class NatIdeaViewComponent {
   }
 
   private refreshSliders() {
-    const newSliders = [];
-    for (let i = 0; i < this.entries.length; i++) {
-      if (this.entries[i] == null) {
-        newSliders.push(null);
+    this.sliders = this.entries.map((entry) => {
+      if (entry == null) {
+        return null;
       } else {
-        let value = this.previouslySetIdeaValues.get(this.entries[i]!.getKey()) || 1;
-        if (this.sliders[i] != null) {
-          value = this.sliders[i]!.value;
-        }
-        newSliders.push(new SliderConfig(this.entries[i]!, this.eu4, value));
+        const previousValue = this.previouslySetIdeaValues.get(entry!.getKey());
+        return new SliderConfig(entry!, this.eu4, previousValue || 1);
       }
-    }
-    this.sliders = newSliders;
+    });
   }
 
   getIdeaAtIndex(index: number) {
@@ -109,19 +118,24 @@ export class NatIdeaViewComponent {
     });
   }
 
+  private getIdeasAndLevels() {
+    return this.entries.map(ideaOrNull => {
+      if (ideaOrNull == null) {
+        return null;
+      }
+      return new IdeaAtLevel(ideaOrNull, this.previouslySetIdeaValues.get(ideaOrNull.getKey())!);
+    });
+  }
+
   getRealWorldCost(index: number, div: HTMLDivElement | null) {
     if (this.sliders[index] == null) {
       return 0;
     }
-    return Math.ceil(this.userConfig.getCustomIdeaWeights()[index] * this.sliders[index].getCurrentCost());
+    return this.ideaService.getRealWorldCost(index, new IdeaAtLevel(this.sliders[index].getIdea(), this.sliders[index].value));
   }
 
   getTotalCost() {
-    let total = 0;
-    for (let i = 0; i < this.sliders.length; i++) {
-      total += this.getRealWorldCost(i, null);
-    }
-    return total;
+    return this.ideaService.getTotalCost(this.getIdeasAndLevels());
   }
 
   getMaxLegalCost() {
@@ -153,29 +167,11 @@ export class NatIdeaViewComponent {
   }
 
   getCostsPerMana() {
-    if (this.ideasConnector.getSelectedIdeas().size < 1) {
-      return [0, 0, 0];
-    }
-    const costPerMana = [Mana.ADM, Mana.DIP, Mana.MIL].map(mana => {
-      return Array.from(this.getSliders()).map(slider => {
-        if (slider == null || slider.getIdea().getMana() != mana) {
-          return 0;
-        }
-        return slider.getIdea().getCostAtLevel(slider.value);
-      }).reduce((a, b) => a + b, 0);
-    });
-    return costPerMana;
+    return this.ideaService.getCostsPerMana(this.getIdeasAndLevels().filter(idea => idea != null) as IdeaAtLevel[]);
   }
 
   getManaPercentages() {
-    const costPerMana = this.getCostsPerMana();
-    const totalCost = costPerMana.reduce((a, b) => a + b, 0);
-    return costPerMana.map(cost => {
-      if (totalCost == 0) {
-        return 0;
-      }
-      return Math.floor(cost / totalCost * 100);
-    });
+    return this.ideaService.getManaPercentages(this.getIdeasAndLevels().filter(idea => idea != null) as IdeaAtLevel[]);
   }
 
   getManaPercentage(index: number) {
@@ -228,42 +224,15 @@ export class NatIdeaViewComponent {
     this.storePreviouslySetValuesAndPositionsInLocalStorage();
   }
 
-  private initFileDragAndDropImport() {
-    const dropArea = document.getElementsByClassName('idea-set-header');
-    if (dropArea.length > 0) {
-      dropArea[0].addEventListener('dragover', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      });
-      dropArea[0].addEventListener('drop', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+  clearAllIdeas() {
+    this.ideasConnector.clearSelection();
+  }
 
-        const files = (event as DragEvent).dataTransfer!.files;
-        if (files && files.length > 0) {
-          const file = files[0];
-          if (file.name.endsWith('.zip')) {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-              if (e.target?.result instanceof ArrayBuffer) {
-                const JSZip = (await import('jszip')).default;
-                const zip = await JSZip.loadAsync(e.target.result);
-                const fileNames = Object.keys(zip.files);
-                for (const fileName of fileNames) {
-                  const fileContent = await zip.files[fileName].async("string");
-                  if (fileName.endsWith(".txt")) {
-                    this.importExportService.parseIntoIdeas(fileContent).then((parsed) => {
-                    });
-                  }
-                }
-              }
-            };
-            reader.readAsArrayBuffer(file);
-          } else {
-            console.log("The dropped file is not a zip file.");
-          }
-        }
-      });
+  importIdeas(ideas: IdeaAtLevel[]) {
+    this.clearAllIdeas();
+    for (let idea of ideas) {
+      this.previouslySetIdeaValues.set(idea.getIdea().getKey(), Math.min(idea.getLevel(), idea.getIdea().getMaxCustomLevel()));
     }
+    this.ideasConnector.setSelection(ideas.map(idea => idea.getIdea().getKey()));
   }
 }

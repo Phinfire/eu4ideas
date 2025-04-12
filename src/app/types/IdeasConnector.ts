@@ -63,4 +63,9 @@ export class IdeasConnector implements ISelectConnector {
   public canAlterSelection(key: string) {
     return this.selectedIdeas.size < this.maxIdeas || this.selectedIdeas.has(this.lobbyConfigProvider.getIdea(key));
   }
+
+  clearSelection() {
+    this.selectedIdeas.clear();
+    this.listeners.forEach(listener => listener());
+  }
 }

@@ -112,7 +112,7 @@ th, td {
     border-top: 1px solid var(--font-color);
 }
 
-.bar-under-table > div:first-child {
+.bar-under-table > div:nth-child(2) {
     flex-grow: 1;
     font-size: 1.5em;
     display: flex;
@@ -121,11 +121,11 @@ th, td {
     justify-content: center;
 }
 
-.bar-under-table > div:first-child > div:nth-child(even) {
+.bar-under-table > div:nth-child(2) > div:nth-child(even) {
     margin-left: 0.5em;
 }   
 
-.bar-under-table > div:first-child > div:nth-child(odd) {
+.bar-under-table > div:nth-child(2) > div:nth-child(odd) {
     margin-left: 1.5em;
 }
 

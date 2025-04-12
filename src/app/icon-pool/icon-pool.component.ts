@@ -9,10 +9,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { ISelectConnector } from '../types/glue/ISelectConnectors';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 @Component({
   selector: 'app-icon-pool',
-  imports: [CommonModule, MatTooltipModule, MatFormFieldModule, MatInputModule, FormsModule, MatButtonModule, MatIconModule],
+  imports: [CommonModule, MatTooltipModule, MatFormFieldModule, MatInputModule, FormsModule, MatButtonModule, MatIconModule, MatSnackBarModule],
   templateUrl: './icon-pool.component.html',
   styleUrl: './icon-pool.component.scss'
 })
@@ -25,7 +26,7 @@ export class IconPoolComponent {
 
   private key_name = new Map<string, string>();
 
-  constructor() {
+  constructor(private snackBar: MatSnackBar) {
 
   }
 
@@ -49,6 +50,19 @@ export class IconPoolComponent {
     if (this.connector.canAlterSelection(key)) {
       this.connector.setSelected(key, !this.isSelected(key));
     }
+  }
+  
+  onIconRightClick(event: MouseEvent, key: string) {
+    event.preventDefault();
+    navigator.clipboard.writeText(key).then(() => {
+      this.snackBar.open('Icon key copied to clipboard!', 'Close', {
+        duration: 500,
+        verticalPosition: 'bottom',
+        horizontalPosition: 'center'
+      }); 
+    }).catch(err => {
+      console.error('Failed to copy key to clipboard: ', err);
+    });
   }
 
   isVisible(key: string) {

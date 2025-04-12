@@ -17,7 +17,11 @@ export class TagSelectConnector implements ISelectConnector{
     }
 
     setSelection(keys: string[]) {
-        
+        if (keys.length > 1) {
+            throw new Error("Too many tags selected: " + keys.length);
+        }
+        this.selectedTag = keys.length === 0 ? null : keys[0];
+        this.listeners.forEach(listener => listener());
     }
 
     setSelected(key: string, selected: boolean): void {

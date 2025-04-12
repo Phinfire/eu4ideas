@@ -15,5 +15,6 @@
          [title]="icon.key" 
          [ngClass]="{ 'selected': isSelected(icon.key), 'not-selected': !isSelected(icon.key) }"
          (click)="onIconClick(icon.key)" 
+         (contextmenu)="onIconRightClick($event, icon.key)"
          draggable="false">
   </div>

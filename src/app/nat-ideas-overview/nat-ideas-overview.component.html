@@ -1,0 +1,84 @@
+<div class="container">
+  <table mat-table [dataSource]="dataSource" matSort
+        class="mat-elevation-z8">
+
+        <ng-container matColumnDef="position">
+          <th mat-header-cell *matHeaderCellDef>
+            No.
+          </th>
+          <td mat-cell *matCellDef="let element; let i = index"> {{i + 1}} </td>
+        </ng-container>
+    
+    <ng-container matColumnDef="tag">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header sortActionDescription="Sort by tag">
+        Tag
+      </th>
+      <td mat-cell *matCellDef="let element"> {{element.icon.key}} </td>
+    </ng-container>
+
+    <ng-container matColumnDef="icon">
+      <th mat-header-cell *matHeaderCellDef>
+        Icon
+      </th>
+      <td mat-cell *matCellDef="let element">
+        <img [src]="element.icon.imageUrl" alt="{{element.icon.name}}" width="32" height="32">
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="name">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header sortActionDescription="Sort by name">
+        Name
+      </th>
+      <td mat-cell *matCellDef="let element"> {{element.icon.name}} </td>
+    </ng-container>
+
+
+    <ng-container matColumnDef="admMana">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header sortActionDescription="Sort by ADM">
+        ADM
+      </th>
+      <td mat-cell *matCellDef="let element"> {{getManaPercentage(element.icon.key, 0)}} </td>
+    </ng-container>
+
+    <ng-container matColumnDef="dipMana">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header sortActionDescription="Sort by DIP">
+        DIP
+      </th>
+      <td mat-cell *matCellDef="let element"> {{getManaPercentage(element.icon.key, 1)}} </td>
+    </ng-container>
+
+    <ng-container matColumnDef="milMana">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header sortActionDescription="Sort by MIL">
+        MIL
+      </th>
+      <td mat-cell *matCellDef="let element"> {{getManaPercentage(element.icon.key, 2)}} </td>
+    </ng-container>
+
+
+    <ng-container matColumnDef="totalIdeaCost">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header sortActionDescription="Sort by cost">
+        Cost
+      </th>
+      <td mat-cell *matCellDef="let element"> {{getTotalCost(element.icon.key)}} </td>
+    </ng-container>
+
+    <ng-container matColumnDef="legal">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header sortActionDescription="Sort by legality">
+        Legal
+      </th>
+      <td mat-cell *matCellDef="let element">
+        <span *ngIf="hasEnteredLegalIdeas(element.icon.key); else redX" 
+              class="green-check" 
+              matTooltip="Legal">✔</span>
+        <ng-template #redX>
+          <span class="red-x" 
+                matTooltip="{{getReason(element.icon.key)}}">✘</span>
+        </ng-template>
+      </td>
+    </ng-container>
+    
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+  </table>
+  <button class="export-button" (click)="export()">Export</button>
+</div>

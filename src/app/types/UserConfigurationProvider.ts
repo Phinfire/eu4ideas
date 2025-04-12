@@ -11,7 +11,7 @@ import { IdeaAtLevel } from "./IdeaAtLevel";
 @Injectable({providedIn: 'root'})
 export class UserConfigurationProvider {
 
-    private minPercentageOfCost = 0.3;    
+    private minPercentageOfCost = 25;    
     private maxFromSingleMana = 4;
     private have1GetTheOtherFree = new Map<string, IdeaAtLevel[]>();
     private balancedIdeas = new Map<string, Idea>();
@@ -71,7 +71,7 @@ export class UserConfigurationProvider {
         return have1GetTheOtherFree;
     }
 
-    private calculateLevelFromModifiers(baseModifier: number, modifier: number) {
+    public calculateLevelFromModifiers(baseModifier: number, modifier: number) {
         const level = Math.round(modifier / baseModifier);
         if (Number.isNaN(level)) {
             throw new Error("Invalid level calculated from baseModifier " + baseModifier + " and modifier " + modifier);
@@ -109,7 +109,7 @@ export class UserConfigurationProvider {
         for (let i = 0; i < 3; i++) {
             const manaPercentage = preCalculatedManaPercentages[i];
             if (manaPercentage < this.minPercentageOfCost) {
-                return "You have to select at least 25% (cost) " + [Mana.ADM,Mana.DIP,Mana.MIL][preCalculatedManaPercentages.indexOf(manaPercentage)].getName() + " ideas.";
+                return "You have to select at least 25% (of total base cost) " + [Mana.ADM,Mana.DIP,Mana.MIL][preCalculatedManaPercentages.indexOf(manaPercentage)].getName() + " ideas.";
             }
         }
         if (headIdeas.length !== levels.length || headIdeas.length != 10) {
@@ -201,21 +201,6 @@ export class UserConfigurationProvider {
                     return ideas.map(idea => {
                         return new KeyedIcon(idea.getKey(), outerThis.eu4.getIdeaIconImageUrl(idea.getKey()), outerThis.eu4.localizeIdea(idea.getKey()));
                     });
-                    /*
-                    let debugString = "";
-                    const maxLocLength  = Math.max(...icons.map(i => outerThis.localizeIdea(i.key).length));
-                    const maxIdeaKeyLength = Math.max(...icons.map(i => i.key.length));
-                    for (let idea of [adm, dip, mil]) {
-                        for (let i of idea.sort((a, b) => a.getKey().localeCompare(b.getKey()))) {
-                            const key = i.getKey().padEnd(maxIdeaKeyLength);
-                            const name = outerThis.localizeIdea(i.getKey()).padEnd(maxLocLength);
-                            const costs = [1,2,3,4].slice(0, i.getMaxCustomLevel()).map(level => i.getCostAtLevel(level)).join("; ").padEnd(18);
-                            const baseModifier = i.getModifierAtLevel(1).toString();
-                            debugString += key + "; " + name + ";" + costs + ";" + baseModifier + "\n";
-                        }
-                    }
-                    console.log(debugString);
-                    */
                 });
             }
         };

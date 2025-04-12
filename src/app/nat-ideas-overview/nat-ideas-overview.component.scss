@@ -1,0 +1,55 @@
+:host {
+    color: var(--font-color);
+    font-family: var(--font-family);
+    font-size: var(--font-size);
+    font-weight: var(--font-weight);
+    background-color: var(--background-color);
+    width: 100%;
+    height: 100%;
+    --mat-sys-surface: none;
+    --mat-sys-on-surface: var(--font-color);
+    --mat-sys-title-small-size: 1em;
+}
+
+.container {
+    background-color: rgb(0,0,0, 0.7);
+    padding: 1em 5em;
+    margin: 0 5em;
+    overflow-y: auto;
+    max-height: 85vh;
+    border-radius: 1em;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+td, th {
+    color: var(--font-color);
+    user-select: none;
+    font-family: var(--font-family);
+}
+
+th {
+    font-weight: bold;
+}
+
+.green-check {
+    color: rgb(0,255,0);
+    font-weight: bold;
+    font-size: 2em;
+}
+  
+.red-x {
+    color: red;
+    font-weight: bold;
+    font-size: 2em;
+}
+
+.export-button {
+    color: var(--font-color);
+    font-family: var(--font-family);
+    font-size: var(--font-size);
+    font-weight: var(--font-weight);
+    background-color: var(--background-color);
+    border: 1px solid var(--font-color);
+    border-radius: 0.5em;
+    margin: 0.5em;
+}

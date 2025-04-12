@@ -154,4 +154,12 @@ export class IdeasComponent {
       this.ideaLocalisations = JSON.parse(localisations);
     }
   }
+
+  public import(results: Map<string,{ideas: IdeaAtLevel[], loc: Map<string,string>}>) {
+    if (results.size != 0) {
+      const firstTag = Array.from(results.keys())[0];
+      const firstIdeas = results.get(firstTag)!.ideas;     
+      this.natIdeaViewComponent.importIdeas(firstIdeas); 
+    }
+  }
 }
